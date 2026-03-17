@@ -1,9 +1,15 @@
+import os
 import setuptools
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 version = "{{VERSION_PLACEHOLDER}}"
+
+# Fallback for direct Git installation (where 'sed' replacement is not performed)
+if version.startswith("{{"):
+    # Default to 0.0.1.dev0 to ensure 'pip install' doesn't crash
+    version = os.environ.get("PEPIT_VERSION", "0.0.1.dev0")
 
 setuptools.setup(
     name="PEPit",
