@@ -30,6 +30,6 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    packages=[element for element in setuptools.find_packages() if element[:5] == 'PEPit'],
+    packages=[pkg for pkg in setuptools.find_packages() if pkg == "PEPit" or pkg.startswith("PEPit.")],
     python_requires=">=3.9",
 )
