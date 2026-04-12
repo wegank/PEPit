@@ -142,7 +142,10 @@ class MosekWrapper(Wrapper):
 
         # Add a mosek constraint via task
         self.task.appendcons(1)
-        A_i, A_j, A_val, a_i, a_val, alpha_val = expression_to_sparse_matrices(constraint.expression)
+        A_i, A_j, A_val, a_i, a_val, alpha_val = expression_to_sparse_matrices(
+            constraint.expression,
+            substitutions=self.symbolic_substitutions,
+        )
 
         sym_A = self.task.appendsparsesymmat(Point.counter, A_i, A_j, A_val)
         self.task.putbaraij(nb_cons, 0, [sym_A], [1.0])
@@ -186,7 +189,10 @@ class MosekWrapper(Wrapper):
         # Store one correspondence constraint per entry of the matrix
         for i in range(psd_matrix.shape[0]):
             for j in range(psd_matrix.shape[1]):
-                A_i, A_j, A_val, a_i, a_val, alpha_val = expression_to_sparse_matrices(psd_matrix[i, j])
+                A_i, A_j, A_val, a_i, a_val, alpha_val = expression_to_sparse_matrices(
+                    psd_matrix[i, j],
+                    substitutions=self.symbolic_substitutions,
+                )
                 # how many constraints in the task so far? This will be the constraint number
                 nb_cons = self.task.getnumcon()
                 # add a constraint in mosek
@@ -264,7 +270,10 @@ class MosekWrapper(Wrapper):
 
         assert self.task.getmaxnumvar() == Expression.counter + 1
         self.objective = objective
-        _, _, _, Fweights_ind, Fweights_val, _ = expression_to_sparse_matrices(objective)
+        _, _, _, Fweights_ind, Fweights_val, _ = expression_to_sparse_matrices(
+            objective,
+            substitutions=self.symbolic_substitutions,
+        )
         self.task.putclist(Fweights_ind,
                            Fweights_val)  # to be cleaned by calling _expression_to_sparse_matrices(objective)?
         # Input the objective sense (minimize/maximize)

@@ -63,6 +63,7 @@ class Wrapper(object):
         self.prob = None
         self.solver_name = None
         self.verbose = verbose
+        self.symbolic_substitutions = None
 
     def check_license(self):
         """

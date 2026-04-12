@@ -99,7 +99,7 @@ class CvxpyWrapper(Wrapper):
         """
         import cvxpy as cp
         
-        Gweights, Fweights, cons = expression_to_matrices(expression)
+        Gweights, Fweights, cons = expression_to_matrices(expression, substitutions=self.symbolic_substitutions)
         cvxpy_variable = cons + self.F @ Fweights + cp.sum(cp.multiply(self.G, Gweights))
 
         # Return the input expression in a cvxpy variable

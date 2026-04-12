@@ -11,6 +11,7 @@ from PEPit.constraint import Constraint
 from PEPit.function import Function
 from PEPit.psd_matrix import PSDMatrix
 from PEPit.block_partition import BlockPartition
+from PEPit.tools.symbolic_scalar import SymbolicScalar, evaluate_scalar
 
 
 class PEP(object):
@@ -107,6 +108,7 @@ class PEP(object):
         # The constraint G >= 0 is the only constraint that is not defined from the class Constraint.
         # Its dual value, called residual, is then stored in the following attribute.
         self.residual = None
+        self.symbolic_substitutions = None
 
     @staticmethod
     def _reset_classes():
@@ -291,6 +293,7 @@ class PEP(object):
 
     def solve(self, wrapper="cvxpy", return_primal_or_dual="dual", safe_mode=True, verbose=1,
               dimension_reduction_heuristic=None, eig_regularization=1e-3, tol_dimension_reduction=1e-4,
+              symbolic_substitutions=None,
               **kwargs):
         """
         Transform the :class:`PEP` under the SDP form, and solve it. Parse the options for solving the SDPs,
@@ -332,6 +335,8 @@ class PEP(object):
                                                        Precisely, the second problem minimizes "optimal_value - tol"
                                                        (only used when "dimension_reduction_heuristic" is not None)
                                                        The default value is 1e-4.
+            symbolic_substitutions (dict, optional): Mapping used to numerically substitute symbolic coefficients
+                                                     before calling the solver.
             kwargs (keywords, optional): Additional solver-specific arguments.
 
         Returns:
@@ -370,11 +375,18 @@ class PEP(object):
         # Store wrapper information in self
         self.wrapper_name = wrapper_name
         self.wrapper = wrapper
+        self.symbolic_substitutions = symbolic_substitutions
 
         # Call the internal solving methods, which formulates and solves the PEP via the SDP solver.
-        out = self._solve_with_wrapper(wrapper, verbose, return_primal_or_dual,
-                                       dimension_reduction_heuristic,
-                                       eig_regularization, tol_dimension_reduction, **kwargs)
+        try:
+            out = self._solve_with_wrapper(wrapper, verbose, return_primal_or_dual,
+                                           dimension_reduction_heuristic,
+                                           eig_regularization, tol_dimension_reduction,
+                                           symbolic_substitutions=symbolic_substitutions,
+                                           **kwargs)
+        finally:
+            SymbolicScalar.set_active_substitutions(None)
+
         return out
 
     def _prepare_constraints(self, verbose=1):
@@ -538,6 +550,7 @@ class PEP(object):
 
     def _solve_with_wrapper(self, wrapper, verbose=1, return_primal_or_dual="dual",
                             dimension_reduction_heuristic=None, eig_regularization=1e-3, tol_dimension_reduction=1e-4,
+                            symbolic_substitutions=None,
                             **kwargs):
         """
         Internal solve method. Translate the :class:`PEP` to an SDP, and solve it via the wrapper.
@@ -584,6 +597,8 @@ class PEP(object):
         if verbose:
             print('(PEPit) Setting up the problem:'
                   ' size of the Gram matrix: {}x{}'.format(Point.counter, Point.counter))
+        wrapper.symbolic_substitutions = symbolic_substitutions
+        SymbolicScalar.set_active_substitutions(symbolic_substitutions)
         wrapper.set_main_variables()
 
         # Determine the lists of constraints and LMIs sent to wrapper
@@ -624,6 +639,7 @@ class PEP(object):
                       "It seems that the optimal value of your problem is unbounded.\033[0m")
 
             # Skip the following as no variable has a value
+            SymbolicScalar.set_active_substitutions(None)
             return wc_value
 
         # Keep dual values before dimension reduction in memory
@@ -697,10 +713,13 @@ class PEP(object):
 
         # Return the value of the minimal performance metric
         if return_primal_or_dual == "dual":
+            SymbolicScalar.set_active_substitutions(None)
             return dual_objective
         elif return_primal_or_dual == "primal":
+            SymbolicScalar.set_active_substitutions(None)
             return wc_value
         else:
+            SymbolicScalar.set_active_substitutions(None)
             raise ValueError("The argument \'return_primal_or_dual\' must be \'dual\' or \`primal\`."
                              "Got {}".format(return_primal_or_dual))
 
@@ -832,12 +851,18 @@ class PEP(object):
         )
         # Get the actual dual_objective from its dict
         if 1 in dual_objective_expression_decomposition_dict.keys():
-            dual_objective = dual_objective_expression_decomposition_dict[1]
+            dual_objective = evaluate_scalar(
+                dual_objective_expression_decomposition_dict[1],
+                substitutions=self.symbolic_substitutions,
+            )
         else:
             dual_objective = 0.
         # Compute the remaining terms, that should be small and only due to numerical stability errors
-        remaining_terms = np.sum(np.abs([value for key, value in dual_objective_expression_decomposition_dict.items()
-                                         if key != 1]))
+        remaining_terms = np.sum(np.abs([
+            evaluate_scalar(value, substitutions=self.symbolic_substitutions)
+            for key, value in dual_objective_expression_decomposition_dict.items()
+            if key != 1
+        ]))
         if verbose:
             message = "(PEPit) The worst-case guarantee proof is perfectly reconstituted"
             if remaining_terms > 0:

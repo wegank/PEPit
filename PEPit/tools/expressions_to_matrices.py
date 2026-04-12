@@ -2,9 +2,10 @@ import numpy as np
 
 from PEPit.point import Point
 from PEPit.expression import Expression
+from PEPit.tools.symbolic_scalar import evaluate_scalar
 
 
-def expression_to_matrices(expression):
+def expression_to_matrices(expression, substitutions=None):
     """
     Translate an expression from an :class:`Expression` to a matrix, a vector, and a constant such that
 
@@ -21,7 +22,7 @@ def expression_to_matrices(expression):
         cons (float): constant term in the :class:`Expression`
 
     """
-    cons = 0
+    cons = 0.
     Fweights = np.zeros((Expression.counter,))
     Gweights = np.zeros((Point.counter, Point.counter))
 
@@ -34,16 +35,16 @@ def expression_to_matrices(expression):
             # Function values are stored in F
             if type(key) == Expression:
                 assert key.get_is_leaf()
-                Fweights[key.counter] = weight
+                Fweights[key.counter] = evaluate_scalar(weight, substitutions=substitutions)
             # Inner products are stored in G
             elif type(key) == tuple:
                 point1, point2 = key
                 assert point1.get_is_leaf()
                 assert point2.get_is_leaf()
-                Gweights[point1.counter, point2.counter] = weight
+                Gweights[point1.counter, point2.counter] = evaluate_scalar(weight, substitutions=substitutions)
             # Constants are simply constants
             elif key == 1:
-                cons = weight
+                cons = evaluate_scalar(weight, substitutions=substitutions)
             # Others don't exist and raise an Exception
             else:
                 raise TypeError("Expressions are made of function values, inner products and constants only!")
@@ -53,7 +54,7 @@ def expression_to_matrices(expression):
     return Gweights, Fweights, cons
 
 
-def expression_to_sparse_matrices(expression):
+def expression_to_sparse_matrices(expression, substitutions=None):
     """
     Translate an expression from an :class:`Expression` to a matrix, a vector, and a constant such that
 
@@ -73,7 +74,7 @@ def expression_to_sparse_matrices(expression):
         cons_val (float): Constant part of the constraint.
 
     """
-    cons_val = 0
+    cons_val = 0.
     Fweights_ind = list()
     Fweights_val = list()
     Gweights_indi = list()
@@ -91,7 +92,7 @@ def expression_to_sparse_matrices(expression):
             if type(key) == Expression:
                 assert key.get_is_leaf()
                 Fweights_ind.append(key.counter)
-                Fweights_val.append(weight)
+                Fweights_val.append(evaluate_scalar(weight, substitutions=substitutions))
             # Inner products are stored in G
             elif type(key) == tuple:
                 point1, point2 = key
@@ -102,16 +103,19 @@ def expression_to_sparse_matrices(expression):
                 if (point2, point1) in expression.decomposition_dict:
                     if point1.counter >= point2.counter:  # if both entry and symmetrical entry: only append in one case
                         weight_sym = expression.decomposition_dict[(point2, point1)]
-                        Gweights_val.append((weight + weight_sym) / 2)
+                        weight_num = evaluate_scalar(weight, substitutions=substitutions)
+                        weight_sym_num = evaluate_scalar(weight_sym, substitutions=substitutions)
+                        Gweights_val.append((weight_num + weight_sym_num) / 2)
                         Gweights_indi.append(point1.counter)
                         Gweights_indj.append(point2.counter)
                 else:
-                    Gweights_val.append((weight + weight_sym) / 2)
+                    weight_num = evaluate_scalar(weight, substitutions=substitutions)
+                    Gweights_val.append((weight_num + weight_sym) / 2)
                     Gweights_indi.append(max(point1.counter, point2.counter))
                     Gweights_indj.append(min(point1.counter, point2.counter))
             # Constants are simply constants
             elif key == 1:
-                cons_val = weight
+                cons_val = evaluate_scalar(weight, substitutions=substitutions)
             # Others don't exist and raise an Exception
             else:
                 raise TypeError("Expressions are made of function values, inner products and constants only!")
