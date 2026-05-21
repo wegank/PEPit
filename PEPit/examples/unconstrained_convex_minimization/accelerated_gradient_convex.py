@@ -28,11 +28,11 @@ def wc_accelerated_gradient_convex(mu, L, n, wrapper="cvxpy", solver=None, verbo
 
     .. math::
 
-        \\begin{eqnarray}
+        \\begin{align}
             \\text{Set: }\\lambda_{t+1} & = & \\frac{1 + \\sqrt{4\\lambda_t^2 + 1}}{2} \\\\
             x_{t} & = & y_t - \\frac{1}{L} \\nabla f(y_t),\\\\
             y_{t+1} & = & x_{t} + \\frac{\\lambda_t-1}{\\lambda_{t+1}} (x_t-x_{t-1}).
-        \\end{eqnarray}
+        \\end{align}
 
     **Theoretical guarantee**: The following worst-case guarantee can be found in e.g., [2, Theorem 4.4]:
 
